@@ -1,4 +1,4 @@
-#🪐Task Orbit💫
+# 🪐Task Orbit💫
 
 **AI-assisted academic workload planner for students and teachers.**
 
