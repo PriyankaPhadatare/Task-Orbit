@@ -6,7 +6,7 @@ Students face overlapping deadlines because each teacher sets due dates without 
 other subjects have already given the same class. Task Orbit attacks the problem from both ends:
 
 - **Students** see all their work in one place (teacher assignments arrive automatically), get an
-  overload forecast for the coming days, a` `````                                                                                   `````````````````````````````````````````````````````````````````````````````````````````````````````````````````                                                                                                    generated study plan, and a fair way to ask for more time.
+  overload forecast for the coming days, a generated study plan, and a fair way to ask for more time.
 - **Teachers** see the whole class's workload *before* setting a deadline, get the least harmful due
   date suggested, and get early warning about students who are likely to submit late.
 
