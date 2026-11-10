@@ -1,0 +1,313 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Task Orbit API",
+    "version": "1.0.0",
+    "description": "REST API for Task Orbit. Most routes require a bearer token from the register or login endpoints. Student and teacher routes are role-restricted. Dates use ISO 8601; server-side date handling is UTC."
+  },
+  "servers": [
+    { "url": "/api", "description": "Current Task Orbit server" }
+  ],
+  "tags": [
+    { "name": "Health" },
+    { "name": "Authentication" },
+    { "name": "Tasks", "description": "Student tasks and task insights" },
+    { "name": "Subjects" },
+    { "name": "Availability" },
+    { "name": "Workload" },
+    { "name": "Planning" },
+    { "name": "Alerts" },
+    { "name": "Classes", "description": "Student class membership, extensions, and weekly check-ins" },
+    { "name": "Prediction" },
+    { "name": "Teacher", "description": "Teacher-only classes, assignments, analytics, and extension decisions" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Check API health",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "API is available",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "status": { "type": "string", "example": "ok" } } } } }
+          }
+        }
+      }
+    },
+    "/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register a student or teacher",
+        "description": "Teacher registration also requires the configured teacher signup code.",
+        "security": [],
+        "requestBody": { "$ref": "#/components/requestBodies/Register" },
+        "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Log in",
+        "description": "Returns a user and access token. The optional role rejects a mismatched account role.",
+        "security": [],
+        "requestBody": { "$ref": "#/components/requestBodies/Login" },
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Authentication"],
+        "summary": "Get the current user",
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/tasks": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "List tasks",
+        "parameters": [
+          { "name": "status", "in": "query", "schema": { "type": "string", "enum": ["todo", "in_progress", "done"] } },
+          { "name": "type", "in": "query", "schema": { "type": "string", "enum": ["assignment", "practical", "exam", "project", "other"] } },
+          { "name": "subject_id", "in": "query", "schema": { "type": "integer" } },
+          { "name": "from", "in": "query", "description": "Inclusive due-date lower bound (YYYY-MM-DD)", "schema": { "type": "string", "format": "date" } },
+          { "name": "to", "in": "query", "description": "Inclusive due-date upper bound (YYYY-MM-DD)", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      },
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Create a personal task",
+        "requestBody": { "$ref": "#/components/requestBodies/TaskCreate" },
+        "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/tasks/{task_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/TaskId" }],
+      "put": {
+        "tags": ["Tasks"],
+        "summary": "Update a task",
+        "description": "Only fields supplied are changed. Teacher-owned fields on class assignments cannot be edited by students.",
+        "requestBody": { "$ref": "#/components/requestBodies/TaskUpdate" },
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      },
+      "delete": {
+        "tags": ["Tasks"],
+        "summary": "Delete a personal task",
+        "description": "Teacher-assigned tasks cannot be deleted by students.",
+        "responses": { "204": { "$ref": "#/components/responses/NoContent" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+    "/tasks/{task_id}/complete": {
+      "parameters": [{ "$ref": "#/components/parameters/TaskId" }],
+      "patch": {
+        "tags": ["Tasks"],
+        "summary": "Complete a task",
+        "requestBody": { "$ref": "#/components/requestBodies/TaskComplete" },
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+    "/tasks/{task_id}/insight": {
+      "parameters": [{ "$ref": "#/components/parameters/TaskId" }],
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get class and AI time estimates for a teacher task",
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } }
+      }
+    },
+    "/tasks/{task_id}/extension": {
+      "parameters": [{ "$ref": "#/components/parameters/TaskId" }],
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Request an extension for a teacher task",
+        "description": "The server attaches workload evidence. The requested date may be at most 14 days after the current due date.",
+        "requestBody": { "$ref": "#/components/requestBodies/Extension" },
+        "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    },
+    "/extensions": {
+      "get": {
+        "tags": ["Classes"],
+        "summary": "List the current student's extension requests",
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/subjects": {
+      "get": { "tags": ["Subjects"], "summary": "List personal subjects", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } } },
+      "post": { "tags": ["Subjects"], "summary": "Create a subject", "requestBody": { "$ref": "#/components/requestBodies/Subject" }, "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" } } }
+    },
+    "/subjects/{subject_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/SubjectId" }],
+      "put": { "tags": ["Subjects"], "summary": "Update a subject", "requestBody": { "$ref": "#/components/requestBodies/Subject" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "delete": { "tags": ["Subjects"], "summary": "Delete a subject", "responses": { "204": { "$ref": "#/components/responses/NoContent" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/availability": {
+      "get": { "tags": ["Availability"], "summary": "Get weekly study availability", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } } },
+      "put": { "tags": ["Availability"], "summary": "Update weekly study availability", "description": "Weekday values are Monday=0 through Sunday=6. Unlisted weekdays remain unchanged.", "requestBody": { "$ref": "#/components/requestBodies/Availability" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" } } }
+    },
+    "/workload": {
+      "get": {
+        "tags": ["Workload"],
+        "summary": "Get daily workload for a date range",
+        "parameters": [
+          { "name": "from", "in": "query", "description": "Start date; defaults to today", "schema": { "type": "string", "format": "date" } },
+          { "name": "to", "in": "query", "description": "End date; defaults to 14 days after from; maximum range is 92 days", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/workload/conflicts": { "get": { "tags": ["Workload"], "summary": "Find upcoming deadline conflicts", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } } } },
+    "/predict": { "post": { "tags": ["Prediction"], "summary": "Forecast overload risk for the next seven days", "description": "Uses the trained model when available and falls back to rules otherwise. No request body is required.", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } } } },
+    "/ml/status": { "get": { "tags": ["Prediction"], "summary": "Show loaded prediction models", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } } } },
+    "/plan/generate": {
+      "post": {
+        "tags": ["Planning"],
+        "summary": "Generate a study plan",
+        "description": "If omitted, horizon_days defaults to 14. The maximum is 30 days.",
+        "requestBody": { "$ref": "#/components/requestBodies/PlanGenerate" },
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/plan": { "get": { "tags": ["Planning"], "summary": "Get the current study plan", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } } } },
+    "/plan/{session_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/SessionId" }],
+      "patch": { "tags": ["Planning"], "summary": "Mark a planned session done or not done", "requestBody": { "$ref": "#/components/requestBodies/SessionUpdate" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/alerts": {
+      "get": {
+        "tags": ["Alerts"],
+        "summary": "List alerts",
+        "parameters": [{ "name": "unread", "in": "query", "description": "Set to true to return unread alerts only", "schema": { "type": "boolean" } }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/alerts/{alert_id}/read": {
+      "parameters": [{ "$ref": "#/components/parameters/AlertId" }],
+      "patch": { "tags": ["Alerts"], "summary": "Mark an alert as read", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/classrooms": { "get": { "tags": ["Classes"], "summary": "List the student's classes", "description": "Student role required.", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } } },
+    "/classrooms/join": {
+      "post": { "tags": ["Classes"], "summary": "Join a class using its code", "description": "Student role required.", "requestBody": { "$ref": "#/components/requestBodies/JoinClass" }, "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    },
+    "/classrooms/{classroom_id}/leave": {
+      "parameters": [{ "$ref": "#/components/parameters/ClassroomId" }],
+      "delete": { "tags": ["Classes"], "summary": "Leave a class", "description": "Student role required.", "responses": { "204": { "$ref": "#/components/responses/NoContent" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/checkins": {
+      "get": { "tags": ["Classes"], "summary": "List weekly stress check-ins", "description": "Student role required.", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } },
+      "post": { "tags": ["Classes"], "summary": "Create or update this week's stress check-in", "description": "Student role required.", "requestBody": { "$ref": "#/components/requestBodies/CheckIn" }, "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } }
+    },
+    "/teacher/overview": { "get": { "tags": ["Teacher"], "summary": "Get teacher dashboard overview", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } } },
+    "/teacher/insights": { "get": { "tags": ["Teacher"], "summary": "Get generated teacher insights", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } } },
+    "/teacher/classrooms": {
+      "get": { "tags": ["Teacher"], "summary": "List the teacher's classes", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } },
+      "post": { "tags": ["Teacher"], "summary": "Create a class", "requestBody": { "$ref": "#/components/requestBodies/Classroom" }, "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } } }
+    },
+    "/teacher/classrooms/{classroom_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/ClassroomId" }],
+      "get": { "tags": ["Teacher"], "summary": "Get class details and roster", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "put": { "tags": ["Teacher"], "summary": "Update a class", "requestBody": { "$ref": "#/components/requestBodies/Classroom" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "delete": { "tags": ["Teacher"], "summary": "Delete a class", "responses": { "204": { "$ref": "#/components/responses/NoContent" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/teacher/classrooms/{classroom_id}/students/{student_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/ClassroomId" }, { "$ref": "#/components/parameters/StudentId" }],
+      "delete": { "tags": ["Teacher"], "summary": "Remove a student from a class", "responses": { "204": { "$ref": "#/components/responses/NoContent" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/teacher/classrooms/{classroom_id}/analytics": {
+      "parameters": [{ "$ref": "#/components/parameters/ClassroomId" }],
+      "get": { "tags": ["Teacher"], "summary": "Get class workload analytics", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/teacher/classrooms/{classroom_id}/deadline-check": {
+      "parameters": [{ "$ref": "#/components/parameters/ClassroomId" }],
+      "post": { "tags": ["Teacher"], "summary": "Check the workload impact of a proposed deadline", "requestBody": { "$ref": "#/components/requestBodies/DeadlineCheck" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/teacher/classrooms/{classroom_id}/assignments": {
+      "parameters": [{ "$ref": "#/components/parameters/ClassroomId" }],
+      "get": { "tags": ["Teacher"], "summary": "List a class's assignments", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "post": { "tags": ["Teacher"], "summary": "Create and distribute a class assignment", "requestBody": { "$ref": "#/components/requestBodies/Assignment" }, "responses": { "201": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/teacher/assignments/{assignment_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/AssignmentId" }],
+      "get": { "tags": ["Teacher"], "summary": "Get assignment details and student status", "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "put": { "tags": ["Teacher"], "summary": "Update an assignment", "requestBody": { "$ref": "#/components/requestBodies/AssignmentUpdate" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } },
+      "delete": { "tags": ["Teacher"], "summary": "Delete an assignment", "responses": { "204": { "$ref": "#/components/responses/NoContent" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" } } }
+    },
+    "/teacher/extension-requests": {
+      "get": {
+        "tags": ["Teacher"],
+        "summary": "List extension requests for the teacher's classes",
+        "parameters": [{ "name": "status", "in": "query", "schema": { "type": "string", "enum": ["pending", "approved", "rejected"] } }],
+        "responses": { "200": { "$ref": "#/components/responses/Success" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" } }
+      }
+    },
+    "/teacher/extension-requests/{request_id}": {
+      "parameters": [{ "$ref": "#/components/parameters/RequestId" }],
+      "patch": { "tags": ["Teacher"], "summary": "Approve or reject an extension request", "requestBody": { "$ref": "#/components/requestBodies/ExtensionDecision" }, "responses": { "200": { "$ref": "#/components/responses/Success" }, "400": { "$ref": "#/components/responses/BadRequest" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/NotFound" }, "409": { "$ref": "#/components/responses/Conflict" } } }
+    }
+  },
+  "security": [{ "BearerAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Paste the access_token returned by /auth/login or /auth/register." }
+    },
+    "parameters": {
+      "TaskId": { "name": "task_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "SubjectId": { "name": "subject_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "SessionId": { "name": "session_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "AlertId": { "name": "alert_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "ClassroomId": { "name": "classroom_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "StudentId": { "name": "student_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "AssignmentId": { "name": "assignment_id", "in": "path", "required": true, "schema": { "type": "integer" } },
+      "RequestId": { "name": "request_id", "in": "path", "required": true, "schema": { "type": "integer" } }
+    },
+    "requestBodies": {
+      "Register": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Register" } } } },
+      "Login": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Login" } } } },
+      "TaskCreate": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskCreate" } } } },
+      "TaskUpdate": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskUpdate" } } } },
+      "TaskComplete": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskComplete" } } } },
+      "Subject": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Subject" } } } },
+      "Availability": { "required": true, "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/AvailabilityItem" }, "example": [{ "weekday": 0, "hours": 3 }, { "weekday": 5, "hours": 5 }] } } } },
+      "PlanGenerate": { "required": false, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PlanGenerate" } } } },
+      "SessionUpdate": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionUpdate" } } } },
+      "JoinClass": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JoinClass" } } } },
+      "Extension": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Extension" } } } },
+      "CheckIn": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CheckIn" } } } },
+      "Classroom": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Classroom" } } } },
+      "Assignment": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Assignment" } } } },
+      "AssignmentUpdate": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AssignmentUpdate" } } } },
+      "DeadlineCheck": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeadlineCheck" } } } },
+      "ExtensionDecision": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ExtensionDecision" } } } }
+    },
+    "responses": {
+      "Success": { "description": "Successful response", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JsonResponse" } } } },
+      "NoContent": { "description": "Operation completed successfully; no response body" },
+      "BadRequest": { "description": "Invalid request or validation error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unauthorized": { "description": "Missing, invalid, or expired bearer token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Forbidden": { "description": "The account does not have permission for this operation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "Resource not found or not owned by the current user", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Conflict": { "description": "The request conflicts with current state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "JsonResponse": { "oneOf": [{ "type": "object", "additionalProperties": true }, { "type": "array", "items": {} }] },
+      "Error": { "type": "object", "properties": { "error": { "type": "object", "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "fields": { "type": "object", "additionalProperties": { "type": "string" } } }, "required": ["code", "message"] } }, "required": ["error"] },
+      "Register": { "type": "object", "required": ["name", "email", "password"], "properties": { "name": { "type": "string", "maxLength": 100 }, "email": { "type": "string", "format": "email" }, "password": { "type": "string", "minLength": 8, "maxLength": 128 }, "role": { "type": "string", "enum": ["student", "teacher"], "default": "student" }, "teacher_code": { "type": "string" }, "department": { "type": "string" }, "year": { "type": "string" }, "division": { "type": "string" } } },
+      "Login": { "type": "object", "required": ["email", "password"], "properties": { "email": { "type": "string", "format": "email" }, "password": { "type": "string" }, "role": { "type": "string", "enum": ["student", "teacher"] } } },
+      "TaskCreate": { "type": "object", "required": ["title", "estimated_hours", "due_date"], "properties": { "title": { "type": "string", "maxLength": 200 }, "description": { "type": "string", "nullable": true }, "type": { "type": "string", "enum": ["assignment", "practical", "exam", "project", "other"], "default": "assignment" }, "subject_id": { "type": "integer", "nullable": true }, "difficulty": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 }, "priority": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 }, "estimated_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 500 }, "due_date": { "type": "string", "format": "date-time" }, "start_date": { "type": "string", "format": "date", "nullable": true }, "status": { "type": "string", "enum": ["todo", "in_progress", "done"], "default": "todo" } } },
+      "TaskUpdate": { "type": "object", "description": "All fields are optional; only supplied fields are updated.", "properties": { "title": { "type": "string", "minLength": 1, "maxLength": 200 }, "description": { "type": "string", "maxLength": 5000, "nullable": true }, "type": { "type": "string", "enum": ["assignment", "practical", "exam", "project", "other"] }, "subject_id": { "type": "integer", "nullable": true }, "difficulty": { "type": "integer", "minimum": 1, "maximum": 5 }, "priority": { "type": "integer", "minimum": 1, "maximum": 5 }, "estimated_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 500 }, "due_date": { "type": "string", "format": "date-time" }, "start_date": { "type": "string", "format": "date", "nullable": true }, "status": { "type": "string", "enum": ["todo", "in_progress", "done"] } } },
+      "TaskComplete": { "type": "object", "required": ["actual_hours"], "properties": { "actual_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 500 } } },
+      "Subject": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "maxLength": 100 }, "colour": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "default": "#6366F1" } } },
+      "AvailabilityItem": { "type": "object", "required": ["weekday", "hours"], "properties": { "weekday": { "type": "integer", "minimum": 0, "maximum": 6, "description": "Monday=0 through Sunday=6" }, "hours": { "type": "number", "minimum": 0, "maximum": 24 } } },
+      "PlanGenerate": { "type": "object", "properties": { "horizon_days": { "type": "integer", "minimum": 1, "maximum": 30, "default": 14 } } },
+      "SessionUpdate": { "type": "object", "required": ["done"], "properties": { "done": { "type": "boolean" } } },
+      "JoinClass": { "type": "object", "required": ["code"], "properties": { "code": { "type": "string", "minLength": 4, "maxLength": 8, "example": "DBMS4A" } } },
+      "Extension": { "type": "object", "required": ["reason", "requested_due"], "properties": { "reason": { "type": "string", "minLength": 5, "maxLength": 1000 }, "requested_due": { "type": "string", "format": "date-time" } } },
+      "CheckIn": { "type": "object", "required": ["stress"], "properties": { "stress": { "type": "integer", "minimum": 1, "maximum": 5 }, "note": { "type": "string", "maxLength": 500, "nullable": true } } },
+      "Classroom": { "type": "object", "required": ["name", "subject_name"], "properties": { "name": { "type": "string", "maxLength": 120 }, "subject_name": { "type": "string", "maxLength": 100 }, "colour": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$", "default": "#6366F1" } } },
+      "Assignment": { "type": "object", "required": ["title", "expected_hours", "due_date"], "properties": { "title": { "type": "string", "maxLength": 200 }, "description": { "type": "string", "nullable": true }, "type": { "type": "string", "enum": ["assignment", "practical", "exam", "project", "other"], "default": "assignment" }, "difficulty": { "type": "integer", "minimum": 1, "maximum": 5, "default": 3 }, "expected_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 }, "due_date": { "type": "string", "format": "date-time" }, "start_date": { "type": "string", "format": "date", "nullable": true } } },
+      "AssignmentUpdate": { "type": "object", "description": "All fields are optional; only supplied fields are updated.", "properties": { "title": { "type": "string", "minLength": 1, "maxLength": 200 }, "description": { "type": "string", "maxLength": 5000, "nullable": true }, "type": { "type": "string", "enum": ["assignment", "practical", "exam", "project", "other"] }, "difficulty": { "type": "integer", "minimum": 1, "maximum": 5 }, "expected_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 }, "due_date": { "type": "string", "format": "date-time" }, "start_date": { "type": "string", "format": "date", "nullable": true } } },
+      "DeadlineCheck": { "type": "object", "required": ["expected_hours", "due_date"], "properties": { "expected_hours": { "type": "number", "exclusiveMinimum": 0, "maximum": 200 }, "due_date": { "type": "string", "format": "date-time" }, "start_date": { "type": "string", "format": "date", "nullable": true }, "exclude_assignment_id": { "type": "integer", "nullable": true } } },
+      "ExtensionDecision": { "type": "object", "required": ["status"], "properties": { "status": { "type": "string", "enum": ["approved", "rejected"] }, "teacher_note": { "type": "string", "maxLength": 1000, "nullable": true }, "new_due": { "type": "string", "format": "date-time", "nullable": true } } }
+    }
+  }
+}
